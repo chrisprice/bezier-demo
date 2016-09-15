@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<!--
+
+EWWWWW! don't look at the code, it's orrible!
+
+ -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+<title>Bezier Demo</title>
+<script type="text/javascript" src="jquery.min.js"></script>
+<script type="text/javascript" src="jquery-ui.min.js"></script>
+<link rel="stylesheet" type="text/css" href="normalize.css">
+<link type="text/css" rel="stylesheet" href="jquery-ui-1.8.16.custom.css">
+<style>
+html {
+	overflow: hidden;
+}
+
+body {
+	font-family: Verdana, Arial, sans-serif;
+	margin: 1em;
+}
+
+canvas {
+	display: block;
+	position: absolute;
+	left: 0;
+	top: 0;
+	z-index: -1;
+}
+
+#title {
+	cursor: pointer;
+}
+
+#title span {
+	display: none;
+}
+
+#title:hover span {
+	display: inline;
+}
+
+.ui-button {
+	margin: .4em;
+}
+</style>
+</head>
+
+<body>
+	<h1 id="title">
+		Bezier Demo <span>(+)</span>
+	</h1>
+	<canvas width="1920" height="950" style="width: 1920px; height: 950px;">Your browser does not support canvas, so no Bezier curves for you!</canvas>
+	<div id="controls">
+		<p>Click to add control points, then as you move the mouse left
+			and right the Bezier curve will appear. Double click to clear the
+			control points.</p>
+		<p>
+			Created by <a href="http://www.scottlogic.co.uk/blog/chris">Chris
+				Price</a>, inspired by the <a href="http://en.wikipedia.org/wiki/File:Bezier_4_big.gif">Wikipedia
+				Bezier animations</a> created by Phil Tregoning.
+		</p>
+
+		<input id="showControlPoints" type="checkbox" class="ui-helper-hidden-accessible"><label for="showControlPoints" class="ui-state-active ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only" aria-pressed="true" role="button" aria-disabled="false"><span class="ui-button-text">Show control points</span></label> <input id="showControlPointLines" type="checkbox" class="ui-helper-hidden-accessible"><label for="showControlPointLines" class="ui-state-active ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only" aria-pressed="true" role="button" aria-disabled="false"><span class="ui-button-text">Show control point lines</span></label> <input id="showCurve" type="checkbox" class="ui-helper-hidden-accessible"><label for="showCurve" class="ui-state-active ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only" aria-pressed="true" role="button" aria-disabled="false"><span class="ui-button-text">Show
+			curve</span></label> <input id="showMidPoints" type="checkbox" class="ui-helper-hidden-accessible"><label for="showMidPoints" class="ui-state-active ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only" aria-pressed="true" role="button" aria-disabled="false"><span class="ui-button-text">Show mid-points</span></label> <input id="showMidPointLines" type="checkbox" class="ui-helper-hidden-accessible"><label for="showMidPointLines" class="ui-state-active ui-button ui-widget ui-state-default ui-corner-all ui-button-text-only" aria-pressed="true" role="button" aria-disabled="false"><span class="ui-button-text">Show mid-point lines</span></label> <input id="reset" type="button" value="Reset" class="ui-button ui-widget ui-state-default ui-corner-all ui-state-focus" role="button" aria-disabled="false">
+	</div>
+	<script type="text/javascript">
+		var canvas = $("canvas")[0];
+		$(canvas).width(canvas.width = window.innerWidth).height(canvas.height = window.innerHeight);
+
+		$("#title").click(function() {
+			$("#controls").toggle();
+			saveToURL();
+		});
+
+		var controlPoints = [];
+		var t = 0.5;
+		var curvePoints = new Array(1000);
+		var colours = [ '#c33', '#ea4c88', '#639', '#06c', '#690', '#fc3', '#f90', '#963' ];
+		var settings = {
+			showCurve : true,
+			showMidPoints : true,
+			showMidPointLines : true,
+			showControlPoints : true,
+			showControlPointLines : true
+		};
+
+		function loadFromURL() {
+			var params = {};
+			$.each(location.hash.substr(1).split("&"), function(i, param) {
+				var p = param.split("=");
+				params[p[0]] = p[1];
+			});
+			if (params["points"]) {
+				controlPoints = params["points"].split(";").map(function(s) {
+
+					var p = s.split(",");
+					return {
+						x : Number(p[0]) * canvas.width,
+						y : Number(p[1]) * canvas.height
+					};
+				});
+			}
+			$.each(settings, function(k) {
+				settings[k] = params[k] !== "false"
+			});
+			$("#controls").toggle(params["showControls"] !== "false");
+			if (params.t) {
+				t = Number(params.t);
+			}
+		}
+		loadFromURL();
+
+		function saveToURL() {
+			location.hash = "points=" + $.map(controlPoints, function(p) {
+				return roundTo(p.x / canvas.width, 3) + "," + roundTo(p.y / canvas.height, 3);
+			}).join(";") + "&" + $.map(settings, function(v, k) {
+				return k + "=" + v;
+			}).join("&") + "&showControls=" + $("#controls").is(":visible") + "&t=" + t;
+		}
+
+		$("input[type=checkbox]").each(function() {
+			if (settings[this.id]) {
+				this.checked = true;
+			}
+		}).change(function() {
+			settings[this.id] = !settings[this.id];
+			redraw();
+			saveToURL();
+		}).button();
+
+		$("#title, #controls").click(function(e) {
+			e.stopPropagation();
+		});
+
+		$(document).click(function(e) {
+			controlPoints.push({
+				x : e.clientX,
+				y : e.clientY
+			});
+			saveToURL();
+			curvePoints = new Array(canvas.width);
+			redraw();
+		});
+
+		function roundTo(value, decimalPlaces) {
+			var multiplier = Math.pow(10, decimalPlaces);
+			return Math.round(value * multiplier) / multiplier;
+		}
+
+		function reset() {
+			controlPoints.length = 0;
+			saveToURL();
+			curvePoints = new Array(1000);
+			redraw();
+		}
+
+		$("#reset").click(reset).button();
+		$(document).dblclick(reset);
+
+		$(document).mousemove(function(e) {
+			t = e.clientX / canvas.width;
+			redraw();
+		});
+
+		$(document).bind("selectstart", function() {
+			return false;
+		});
+
+		function redraw() {
+			var ctx = canvas.getContext("2d");
+			ctx.clearRect(0, 0, canvas.width, canvas.height);
+			ctx.fillStyle = colours[0];
+			if (settings.showControlPoints || settings.showControlPointLines) {
+				drawPoints(controlPoints, 0, 5, settings.showControlPoints, settings.showControlPointLines);
+			}
+			if (settings.showCurve) {
+				drawCurve(0);
+			}
+			calculateMidPoints(controlPoints, Math.max(controlPoints.length, 5));
+		}
+
+		function drawCurve(colourIdx) {
+			var ctx = canvas.getContext("2d");
+			ctx.strokeStyle = ctx.fillStyle = colours[colourIdx % (colours.length)];
+			ctx.lineWidth = 5;
+			ctx.beginPath();
+			for ( var i = 0; i < curvePoints.length; i++) {
+				if (curvePoints[i] !== undefined) {
+					ctx.moveTo(curvePoints[i].x, curvePoints[i].y);
+					break;
+				}
+			}
+			for (; i < curvePoints.length; i++) {
+				if (curvePoints[i] !== undefined) {
+					ctx.lineTo(curvePoints[i].x, curvePoints[i].y);
+				}
+			}
+			ctx.stroke();
+			ctx.lineWidth = 1;
+		}
+
+		function drawPoints(points, colourIdx, radius, drawPoints, drawLines) {
+			var ctx = canvas.getContext("2d");
+			ctx.strokeStyle = ctx.fillStyle = colours[colourIdx % (colours.length - 1)];
+			var size = radius * 2;
+			var prevPoint;
+			for ( var i = 0; i < points.length; i++) {
+				if (drawPoints) {
+					ctx.beginPath();
+					ctx.arc(points[i].x, points[i].y, radius, 0, 2 * Math.PI, false);
+					ctx.fill();
+					//ctx.fillRect(points[i].x - radius, points[i].y - radius, size, size);
+				}
+				if (drawLines && i > 0) {
+					ctx.beginPath();
+					ctx.moveTo(prevPoint.x, prevPoint.y);
+					ctx.lineTo(points[i].x, points[i].y);
+					ctx.stroke();
+				}
+				prevPoint = points[i];
+			}
+		}
+
+		function calculateMidPoints(points, depth) {
+			var midPoints = [];
+			var prevPoint = points[0];
+			for ( var i = 1; i < points.length; i++) {
+				midPoints.push({
+					x : prevPoint.x + ((points[i].x - prevPoint.x) * t),
+					y : prevPoint.y + ((points[i].y - prevPoint.y) * t)
+				});
+				prevPoint = points[i];
+			}
+			if (settings.showMidPoints || settings.showMidPointLines) {
+				drawPoints(midPoints, depth, depth, settings.showMidPoints, settings.showMidPointLines);
+			}
+			if (points.length > 1) {
+				calculateMidPoints(midPoints, depth + 1);
+			} else {
+				curvePoints[Math.round(t * 1000)] = prevPoint;
+			}
+		}
+
+		redraw();
+	</script>
+
+
+</body></html>
